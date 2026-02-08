@@ -57,6 +57,10 @@
 - **提示词缓存**：映射缓存控制提示（在支持的情况下）
 - **Beta Header 映射**：自动将 Anthropic beta headers 映射到 Bedrock beta headers（如 `advanced-tool-use-2025-11-20` → `tool-examples-2025-10-29`）
 - **工具输入示例**：支持 `input_examples` 参数，为工具提供示例输入以帮助模型更好地理解工具用法
+- **跨账号访问**：支持通过 STS AssumeRole 访问不同 AWS 账号的 Bedrock 资源 ([配置指南](./CROSS_ACCOUNT_SETUP.md))
+  - 代理服务和 Bedrock 资源可在不同账号
+  - 开发/生产账号分离部署
+  - 多租户架构支持
 
 ### 基础设施
 - **身份验证**：基于 API 密钥的身份验证，使用 DynamoDB 存储
@@ -668,6 +672,20 @@ AWS_REGION=us-east-1
 AWS_ACCESS_KEY_ID=your-access-key
 AWS_SECRET_ACCESS_KEY=your-secret-key
 ```
+
+#### 跨账号 Bedrock 访问（可选）
+
+如果你需要从一个 AWS 账号访问另一个账号的 Bedrock 资源：
+
+```bash
+# 目标账号的 IAM Role ARN
+BEDROCK_CROSS_ACCOUNT_ROLE_ARN=arn:aws:iam::123456789012:role/BedrockAccessRole
+
+# Bedrock 服务所在区域
+BEDROCK_REGION=us-west-2
+```
+
+> 📖 **详细配置指南**: 请参见 [跨账号配置文档](./CROSS_ACCOUNT_SETUP.md)，包含完整的 IAM 角色创建、权限配置和安全最佳实践。
 
 #### 身份验证
 ```bash
