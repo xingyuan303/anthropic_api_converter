@@ -60,6 +60,14 @@ class Settings(BaseSettings):
     bedrock_endpoint_url: Optional[str] = Field(
         default=None, alias="BEDROCK_ENDPOINT_URL"
     )
+    
+    # Bedrock Cross-Account Settings
+    bedrock_cross_account_role_arn: Optional[str] = Field(
+        default=None, alias="BEDROCK_CROSS_ACCOUNT_ROLE_ARN"
+    )
+    bedrock_region: str = Field(
+        default="us-east-1", alias="BEDROCK_REGION"
+    )
 
     # DynamoDB Settings
     dynamodb_endpoint_url: Optional[str] = Field(
