@@ -12,6 +12,7 @@ from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.utils import mask_api_key
 from app.db.dynamodb import APIKeyManager, DynamoDBClient
 
 
@@ -139,7 +140,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                     if deactivated_reason == "budget_exceeded":
                         budget_used = float(item.get("budget_used_mtd", 0))
                         monthly_budget = float(item.get("monthly_budget", 0))
-                        print(f"[AUTH] API key deactivated due to budget exceeded: {api_key[:20]}... (Used: ${budget_used:.2f} / Limit: ${monthly_budget:.2f})")
+                        print(f"[AUTH] API key deactivated due to budget exceeded: {mask_api_key(api_key)} (Used: ${budget_used:.2f} / Limit: ${monthly_budget:.2f})")
 
                         return JSONResponse(
                             status_code=status.HTTP_402_PAYMENT_REQUIRED,
@@ -153,7 +154,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         )
                     elif deactivated_reason:
                         # Other deactivation reasons
-                        print(f"[AUTH] API key deactivated ({deactivated_reason}): {api_key[:20]}...")
+                        print(f"[AUTH] API key deactivated ({deactivated_reason}): {mask_api_key(api_key)}")
                         return JSONResponse(
                             status_code=status.HTTP_403_FORBIDDEN,
                             content={
@@ -166,7 +167,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                         )
                     else:
                         # Deactivated but no reason specified
-                        print(f"[AUTH] API key deactivated (no reason): {api_key[:20]}...")
+                        print(f"[AUTH] API key deactivated (no reason): {mask_api_key(api_key)}")
                         return JSONResponse(
                             status_code=status.HTTP_403_FORBIDDEN,
                             content={
@@ -181,7 +182,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
                 print(f"[AUTH] Error checking deactivation reason: {e}")
 
             # Key doesn't exist or other error
-            print(f"[AUTH] Invalid API key: {api_key[:20]}...")
+            print(f"[AUTH] Invalid API key: {mask_api_key(api_key)}")
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={

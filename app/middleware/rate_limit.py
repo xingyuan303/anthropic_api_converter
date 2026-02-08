@@ -12,6 +12,7 @@ from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.core.config import settings
+from app.core.utils import mask_api_key
 
 
 class TokenBucket:
@@ -160,7 +161,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             # Rate limit exceeded
             retry_after = int(bucket.get_time_until_available(1)) + 1
 
-            print(f"[RATE_LIMIT] Rate limit exceeded for API key: {api_key[:20]}...")
+            print(f"[RATE_LIMIT] Rate limit exceeded for API key: {mask_api_key(api_key)}")
             print(f"  - Limit: {rate_limit}")
             print(f"  - Retry after: {retry_after}s")
 

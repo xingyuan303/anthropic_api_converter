@@ -15,6 +15,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from app.core.config import settings
+from app.core.utils import mask_api_key
 
 
 class DynamoDBClient:
@@ -367,7 +368,7 @@ class APIKeyManager:
                     ":updated_at": int(time.time()),
                 },
             )
-            print(f"[APIKeyManager] Auto-reactivated key {api_key[:20]}... for new month {current_month}")
+            print(f"[APIKeyManager] Auto-reactivated key {mask_api_key(api_key)} for new month {current_month}")
             return True
         except ClientError as e:
             print(f"[APIKeyManager] Error reactivating key: {e}")
@@ -409,7 +410,7 @@ class APIKeyManager:
         """
         try:
             self.deactivate_api_key(api_key, reason="budget_exceeded")
-            print(f"[APIKeyManager] Deactivated key {api_key[:20]}... due to budget exceeded")
+            print(f"[APIKeyManager] Deactivated key {mask_api_key(api_key)} due to budget exceeded")
             return True
         except ClientError as e:
             print(f"[APIKeyManager] Error deactivating key: {e}")
@@ -1546,7 +1547,7 @@ class UsageStatsManager:
                     if api_key_manager and adjusted_cost > 0:
                         result = api_key_manager.increment_budget_used(api_key, adjusted_cost)
                         if result.get("budget_exceeded"):
-                            print(f"[UsageStatsManager] API key {api_key[:20]}... exceeded budget")
+                            print(f"[UsageStatsManager] API key {mask_api_key(api_key)} exceeded budget")
             else:
                 # First run: set initial values
                 if self.update_stats(
@@ -1565,6 +1566,6 @@ class UsageStatsManager:
                     if api_key_manager and adjusted_cost > 0:
                         result = api_key_manager.increment_budget_used(api_key, adjusted_cost)
                         if result.get("budget_exceeded"):
-                            print(f"[UsageStatsManager] API key {api_key[:20]}... exceeded budget")
+                            print(f"[UsageStatsManager] API key {mask_api_key(api_key)} exceeded budget")
 
         return count
