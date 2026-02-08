@@ -1217,7 +1217,24 @@ Before writing code, verify:
         """
         state = self._execution_states.get(session_id)
         if not state:
-            raise ValueError(f"No pending execution for session {session_id}")
+            # Provide detailed error for multi-instance routing issues
+            import os
+            instance_id = os.environ.get('HOSTNAME', os.environ.get('COMPUTERNAME', 'unknown'))
+
+            logger.error(f"[PTC] Session {session_id} not found on instance {instance_id}")
+            logger.error(f"[PTC] Active sessions on this instance: {list(self._execution_states.keys())}")
+
+            raise ValueError(
+                f"PTC session '{session_id}' not found on this instance (instance_id: {instance_id}). "
+                f"This typically indicates a multi-instance routing issue. "
+                f"Possible causes: "
+                f"(1) ALB sticky session expired (session timeout: {settings.ptc_session_timeout}s), "
+                f"(2) Instance was restarted and lost in-memory sessions, "
+                f"(3) Load balancer routed continuation request to a different instance. "
+                f"Active sessions on this instance: {len(self._execution_states)}. "
+                f"Solution: Ensure ALB sticky sessions are enabled with sufficient duration, "
+                f"or create a new PTC session."
+            )
 
         logger.info(f"[PTC] Resuming execution for session {session_id}, tool={state.pending_tool_name}")
 
@@ -2657,9 +2674,28 @@ Before writing code, verify:
         """
         state = self._execution_states.get(session_id)
         if not state:
+            # Provide detailed error for multi-instance routing issues
+            import os
+            instance_id = os.environ.get('HOSTNAME', os.environ.get('COMPUTERNAME', 'unknown'))
+
+            logger.error(f"[PTC] Session {session_id} not found on instance {instance_id}")
+            logger.error(f"[PTC] Active sessions on this instance: {list(self._execution_states.keys())}")
+
+            error_message = (
+                f"PTC session '{session_id}' not found on this instance (instance_id: {instance_id}). "
+                f"This typically indicates a multi-instance routing issue. "
+                f"Possible causes: "
+                f"(1) ALB sticky session expired (session timeout: {settings.ptc_session_timeout}s), "
+                f"(2) Instance was restarted and lost in-memory sessions, "
+                f"(3) Load balancer routed continuation request to a different instance. "
+                f"Active sessions on this instance: {len(self._execution_states)}. "
+                f"Solution: Ensure ALB sticky sessions are enabled with sufficient duration, "
+                f"or create a new PTC session."
+            )
+
             yield self._format_sse_event({
                 "type": "error",
-                "error": {"type": "api_error", "message": f"No pending execution for session {session_id}"}
+                "error": {"type": "api_error", "message": error_message}
             })
             return
 

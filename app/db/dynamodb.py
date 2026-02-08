@@ -18,6 +18,74 @@ from app.core.config import settings
 from app.core.utils import mask_api_key
 
 
+# Timestamp Standards
+# ===================
+# This module uses the following timestamp conventions:
+#
+# 1. DynamoDB Storage (all internal timestamps):
+#    - Format: Unix timestamp (integer seconds since epoch)
+#    - Fields: timestamp, created_at, updated_at, last_aggregated_timestamp
+#    - Reason: DynamoDB TTL requires Unix timestamp, efficient for queries
+#    - Example: 1704067200 (2024-01-01 00:00:00 UTC)
+#
+# 2. Month Tracking:
+#    - Format: YYYY-MM string
+#    - Fields: budget_mtd_month
+#    - Reason: Human-readable month comparison
+#    - Example: "2024-01"
+#
+# 3. API Responses (converted before sending to client):
+#    - Format: ISO 8601 (YYYY-MM-DDTHH:MM:SS.sssZ)
+#    - Reason: Standard web API format, human-readable, timezone-aware
+#    - Example: "2024-01-01T00:00:00.000Z"
+#
+# Helper functions:
+
+def get_current_timestamp() -> int:
+    """
+    Get current Unix timestamp (seconds since epoch).
+
+    Returns:
+        Integer Unix timestamp in seconds
+
+    Example:
+        >>> get_current_timestamp()
+        1704067200
+    """
+    return int(time.time())
+
+
+def get_current_month() -> str:
+    """
+    Get current month in YYYY-MM format.
+
+    Returns:
+        Month string in YYYY-MM format
+
+    Example:
+        >>> get_current_month()
+        "2024-01"
+    """
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def timestamp_to_iso(timestamp: int) -> str:
+    """
+    Convert Unix timestamp to ISO 8601 format.
+
+    Args:
+        timestamp: Unix timestamp in seconds
+
+    Returns:
+        ISO 8601 formatted timestamp string
+
+    Example:
+        >>> timestamp_to_iso(1704067200)
+        "2024-01-01T00:00:00Z"
+    """
+    return datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat().replace('+00:00', 'Z')
+
+
 class DynamoDBClient:
     """DynamoDB client for managing tables and operations."""
 
@@ -250,10 +318,10 @@ class APIKeyManager:
                 raise ValueError(f"service_tier must be one of {valid_tiers}, got: {service_tier}")
 
         api_key = f"sk-{uuid4().hex}"
-        timestamp = int(time.time())
+        timestamp = get_current_timestamp()
 
         # Get current month in YYYY-MM format
-        current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        current_month = get_current_month()
 
         item = {
             "api_key": api_key,
@@ -308,7 +376,7 @@ class APIKeyManager:
             deactivated_reason = item.get("deactivated_reason")
             if deactivated_reason == "budget_exceeded":
                 budget_mtd_month = item.get("budget_mtd_month", "")
-                current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+                current_month = get_current_month()
 
                 if budget_mtd_month != current_month:
                     # New month has started - reactivate and reset MTD
@@ -365,7 +433,7 @@ class APIKeyManager:
                     ":month": current_month,
                     ":null": None,
                     ":history": new_budget_history_str,
-                    ":updated_at": int(time.time()),
+                    ":updated_at": get_current_timestamp(),
                 },
             )
             print(f"[APIKeyManager] Auto-reactivated key {mask_api_key(api_key)} for new month {current_month}")
@@ -385,7 +453,7 @@ class APIKeyManager:
         update_expr = "SET is_active = :val, updated_at = :updated_at"
         expr_values: Dict[str, Any] = {
             ":val": False,
-            ":updated_at": int(time.time()),
+            ":updated_at": get_current_timestamp(),
         }
 
         if reason:
@@ -586,7 +654,7 @@ class APIKeyManager:
 
         # Add updated_at timestamp
         update_parts.append("updated_at = :updated_at")
-        expression_values[":updated_at"] = int(time.time())
+        expression_values[":updated_at"] = get_current_timestamp()
 
         update_expression = "SET " + ", ".join(update_parts)
 
@@ -652,7 +720,7 @@ class APIKeyManager:
         Returns:
             Dict with 'success', 'budget_exceeded', and optionally 'new_mtd'
         """
-        current_month = datetime.now(timezone.utc).strftime("%Y-%m")
+        current_month = get_current_month()
 
         try:
             # First, get current key info to check the month
@@ -692,7 +760,7 @@ class APIKeyManager:
                         ":zero": Decimal("0"),
                         ":month": current_month,
                         ":history": new_budget_history_str,
-                        ":updated_at": int(time.time()),
+                        ":updated_at": get_current_timestamp(),
                     },
                 )
                 new_mtd = amount
@@ -706,7 +774,7 @@ class APIKeyManager:
                     ExpressionAttributeValues={
                         ":amount": Decimal(str(amount)),
                         ":zero": Decimal("0"),
-                        ":updated_at": int(time.time()),
+                        ":updated_at": get_current_timestamp(),
                     },
                 )
                 current_mtd = float(item.get("budget_used_mtd", 0))
@@ -763,7 +831,7 @@ class UsageTracker:
             metadata: Optional metadata
         """
         # Use string timestamp to match CDK table schema (STRING type)
-        current_time = int(time.time())
+        current_time = get_current_timestamp()
         timestamp = str(current_time * 1000)  # milliseconds as string
 
         item = {
@@ -881,7 +949,7 @@ class ModelMappingManager:
         item = {
             "anthropic_model_id": anthropic_model_id,
             "bedrock_model_id": bedrock_model_id,
-            "updated_at": int(time.time()),
+            "updated_at": get_current_timestamp(),
         }
         self.table.put_item(Item=item)
 
@@ -940,7 +1008,7 @@ class ModelPricingManager:
         Returns:
             Created pricing item
         """
-        timestamp = int(time.time())
+        timestamp = get_current_timestamp()
 
         # Convert floats to Decimal for DynamoDB compatibility
         def to_decimal(value: Optional[Union[float, Decimal]]) -> Optional[Decimal]:
@@ -1049,7 +1117,7 @@ class ModelPricingManager:
 
         # Add updated_at timestamp
         update_parts.append("updated_at = :updated_at")
-        expression_values[":updated_at"] = int(time.time())
+        expression_values[":updated_at"] = get_current_timestamp()
 
         update_expression = "SET " + ", ".join(update_parts)
 
@@ -1243,7 +1311,7 @@ class UsageStatsManager:
                 "total_cached_tokens": cached_tokens,
                 "total_cache_write_tokens": cache_write_tokens,
                 "total_requests": request_count,
-                "last_updated": int(time.time()),
+                "last_updated": get_current_timestamp(),
             }
             if last_aggregated_timestamp is not None:
                 item["last_aggregated_timestamp"] = last_aggregated_timestamp
@@ -1296,7 +1364,7 @@ class UsageStatsManager:
                     ":cache_write_tokens": delta_cache_write_tokens,
                     ":request_count": delta_request_count,
                     ":last_timestamp": last_aggregated_timestamp,
-                    ":now": int(time.time()),
+                    ":now": get_current_timestamp(),
                     ":zero": 0,
                 },
             )

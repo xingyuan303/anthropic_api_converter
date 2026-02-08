@@ -135,9 +135,14 @@ async def ptc_health_check():
         Dictionary with PTC health status information
     """
     from app.services.ptc_service import get_ptc_service
+    import os
+
+    # Get instance identification for multi-instance deployments
+    instance_id = os.environ.get('HOSTNAME', os.environ.get('COMPUTERNAME', 'unknown'))
 
     result = {
         "enabled": settings.enable_programmatic_tool_calling,
+        "instance_id": instance_id,
         "config": {
             "sandbox_image": settings.ptc_sandbox_image,
             "session_timeout": settings.ptc_session_timeout,
@@ -146,6 +151,7 @@ async def ptc_health_check():
             "network_disabled": settings.ptc_network_disabled,
         },
         "timestamp": datetime.utcnow().isoformat(),
+        "multi_instance_note": "PTC sessions are instance-specific. Ensure ALB sticky sessions are enabled for multi-instance deployments.",
     }
 
     if not settings.enable_programmatic_tool_calling:
@@ -178,16 +184,23 @@ async def ptc_health_check():
                     result["image_pull_error"] = str(pull_error)
                     logger.error(f"[PTC] Auto-pull error: {pull_error}")
 
-            # Get active session count
+            # Get active session count and session IDs (for debugging)
             try:
                 active_sessions = len(sandbox_executor.active_sessions)
+                session_ids = list(sandbox_executor.active_sessions.keys())[:10]  # Limit to 10 for readability
             except Exception:
                 active_sessions = 0
+                session_ids = []
 
             result["status"] = "healthy"
             result["docker"] = "connected"
             result["sandbox_image_available"] = image_available
             result["active_sessions"] = active_sessions
+            result["session_ids_sample"] = session_ids  # For debugging routing issues
+            result["note"] = (
+                f"Instance {instance_id} has {active_sessions} active PTC session(s). "
+                f"If continuation requests fail with 'session not found', verify ALB sticky sessions are enabled."
+            )
             return result
         else:
             result["status"] = "unhealthy"

@@ -6,7 +6,7 @@ Loads configuration from environment variables with validation and type safety.
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Union
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -315,6 +315,78 @@ class Settings(BaseSettings):
         if v not in valid_envs:
             raise ValueError(f"Environment must be one of {valid_envs}")
         return v
+
+    @model_validator(mode='after')
+    def validate_settings(self):
+        """Validate settings after all fields are loaded."""
+        # Validate rate limit settings
+        if self.rate_limit_enabled:
+            if self.rate_limit_requests <= 0:
+                raise ValueError(f"rate_limit_requests must be positive, got: {self.rate_limit_requests}")
+
+            if self.rate_limit_window <= 0:
+                raise ValueError(f"rate_limit_window must be positive, got: {self.rate_limit_window}")
+
+        # Validate service tier
+        valid_service_tiers = {"default", "flex", "priority", "reserved"}
+        if self.default_service_tier not in valid_service_tiers:
+            raise ValueError(
+                f"default_service_tier must be one of {valid_service_tiers}, "
+                f"got: {self.default_service_tier}"
+            )
+
+        # Validate PTC settings
+        if self.enable_programmatic_tool_calling:
+            if self.ptc_session_timeout <= 0:
+                raise ValueError(f"ptc_session_timeout must be positive, got: {self.ptc_session_timeout}")
+
+            if self.ptc_execution_timeout <= 0:
+                raise ValueError(f"ptc_execution_timeout must be positive, got: {self.ptc_execution_timeout}")
+
+            # Check Docker availability (only issue warning, don't fail)
+            try:
+                import docker
+                client = docker.from_env()
+                client.ping()
+                print("[CONFIG] ✓ Docker is available for PTC")
+            except ImportError:
+                print("[CONFIG] ⚠ Warning: Docker SDK not installed. Install with 'pip install docker'")
+            except Exception as e:
+                print(f"[CONFIG] ⚠ Warning: Docker not available for PTC: {e}")
+                print("[CONFIG]   PTC will be disabled at runtime. To enable PTC:")
+                print("[CONFIG]   1. Install Docker (https://docs.docker.com/get-docker/)")
+                print("[CONFIG]   2. Start Docker daemon")
+                print("[CONFIG]   3. Ensure current user has Docker socket access")
+
+        # Validate standalone code execution settings
+        if self.enable_standalone_code_execution:
+            if self.standalone_max_iterations <= 0:
+                raise ValueError(f"standalone_max_iterations must be positive, got: {self.standalone_max_iterations}")
+
+            if self.standalone_bash_timeout <= 0:
+                raise ValueError(f"standalone_bash_timeout must be positive, got: {self.standalone_bash_timeout}")
+
+            if self.standalone_max_file_size <= 0:
+                raise ValueError(f"standalone_max_file_size must be positive, got: {self.standalone_max_file_size}")
+
+        # Validate timeouts
+        if self.bedrock_timeout <= 0:
+            raise ValueError(f"bedrock_timeout must be positive, got: {self.bedrock_timeout}")
+
+        if self.dynamodb_timeout <= 0:
+            raise ValueError(f"dynamodb_timeout must be positive, got: {self.dynamodb_timeout}")
+
+        if self.streaming_timeout <= 0:
+            raise ValueError(f"streaming_timeout must be positive, got: {self.streaming_timeout}")
+
+        # Validate thread pool settings
+        if self.bedrock_thread_pool_size <= 0:
+            raise ValueError(f"bedrock_thread_pool_size must be positive, got: {self.bedrock_thread_pool_size}")
+
+        if self.bedrock_semaphore_size <= 0:
+            raise ValueError(f"bedrock_semaphore_size must be positive, got: {self.bedrock_semaphore_size}")
+
+        return self
 
 
 @lru_cache()
