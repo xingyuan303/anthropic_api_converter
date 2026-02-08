@@ -5,9 +5,9 @@ Implements token bucket rate limiting per API key using in-memory storage
 with optional Redis backend for distributed systems.
 """
 import time
-from collections import defaultdict
 from typing import Callable, Dict
 
+from cachetools import TTLCache
 from fastapi import HTTPException, Request, status
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -97,12 +97,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             app: FastAPI application
         """
         super().__init__(app)
-        self.buckets: Dict[str, TokenBucket] = defaultdict(
-            lambda: TokenBucket(
-                capacity=settings.rate_limit_requests,
-                refill_rate=settings.rate_limit_requests
-                / settings.rate_limit_window,
-            )
+        # Use TTLCache to automatically clean up inactive buckets after 24 hours
+        # maxsize: Maximum number of API keys to cache (10000 should be enough for most cases)
+        # ttl: Time to live in seconds (86400 = 24 hours)
+        self.buckets: TTLCache = TTLCache(
+            maxsize=10000,
+            ttl=86400  # 24 hours
         )
 
     async def dispatch(self, request: Request, call_next: Callable):
@@ -143,7 +143,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         rate_limit = api_key_info.get("rate_limit", settings.rate_limit_requests)
 
         # Convert to int/float (DynamoDB returns Decimal which doesn't work with float operations)
-        rate_limit = int(rate_limit) if rate_limit else settings.rate_limit_requests
+        # Use 'is not None' to properly handle rate_limit=0
+        rate_limit = int(rate_limit) if rate_limit is not None else settings.rate_limit_requests
 
         # Update bucket capacity if custom rate limit
         if api_key not in self.buckets:

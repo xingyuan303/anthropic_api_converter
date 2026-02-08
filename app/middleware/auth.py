@@ -5,7 +5,9 @@ Validates API keys from request headers and attaches user information to request
 """
 from typing import Callable
 
+from botocore.exceptions import ClientError
 from fastapi import HTTPException, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 from starlette.middleware.base import BaseHTTPMiddleware
 
@@ -88,17 +90,98 @@ class AuthMiddleware(BaseHTTPMiddleware):
         # Validate API key in DynamoDB
         try:
             api_key_info = self.api_key_manager.validate_api_key(api_key)
+        except ClientError as e:
+            # DynamoDB specific errors (connection issues, throttling, etc.)
+            error_code = e.response.get('Error', {}).get('Code', 'Unknown')
+            print(f"[ERROR] DynamoDB error during API key validation: {error_code}")
+            print(f"[ERROR] Message: {str(e)}")
+            return JSONResponse(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                content={
+                    "type": "error",
+                    "error": {
+                        "type": "api_error",
+                        "message": "Authentication service temporarily unavailable. Please try again in a moment.",
+                    },
+                },
+            )
         except Exception as e:
-            print(f"\n[ERROR] Exception during API key validation")
+            # Unexpected errors
+            print(f"\n[ERROR] Unexpected exception during API key validation")
             print(f"[ERROR] Type: {type(e).__name__}")
             print(f"[ERROR] Message: {str(e)}")
             import traceback
             print(f"[ERROR] Traceback:\n{traceback.format_exc()}\n")
-            api_key_info = None
+            return JSONResponse(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                content={
+                    "type": "error",
+                    "error": {
+                        "type": "api_error",
+                        "message": "Internal server error during authentication. Please contact support if this persists.",
+                    },
+                },
+            )
 
         if not api_key_info:
-            print(f"[AUTH] Invalid API key: {api_key[:20]}...")
+            # Check if the key exists but is deactivated (for better error message)
             from fastapi.responses import JSONResponse
+            try:
+                from botocore.exceptions import ClientError
+                table = self.api_key_manager.table
+                response = table.get_item(Key={"api_key": api_key})
+                item = response.get("Item")
+
+                if item and not item.get("is_active", False):
+                    # Key exists but is deactivated - provide specific reason
+                    deactivated_reason = item.get("deactivated_reason")
+
+                    if deactivated_reason == "budget_exceeded":
+                        budget_used = float(item.get("budget_used_mtd", 0))
+                        monthly_budget = float(item.get("monthly_budget", 0))
+                        print(f"[AUTH] API key deactivated due to budget exceeded: {api_key[:20]}... (Used: ${budget_used:.2f} / Limit: ${monthly_budget:.2f})")
+
+                        return JSONResponse(
+                            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+                            content={
+                                "type": "error",
+                                "error": {
+                                    "type": "budget_exceeded_error",
+                                    "message": f"API key has been deactivated because the monthly budget limit (${monthly_budget:.2f}) has been exceeded. Current usage: ${budget_used:.2f}. The key will automatically reactivate at the start of next month.",
+                                },
+                            },
+                        )
+                    elif deactivated_reason:
+                        # Other deactivation reasons
+                        print(f"[AUTH] API key deactivated ({deactivated_reason}): {api_key[:20]}...")
+                        return JSONResponse(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            content={
+                                "type": "error",
+                                "error": {
+                                    "type": "permission_error",
+                                    "message": f"API key has been deactivated. Reason: {deactivated_reason}. Please contact the administrator.",
+                                },
+                            },
+                        )
+                    else:
+                        # Deactivated but no reason specified
+                        print(f"[AUTH] API key deactivated (no reason): {api_key[:20]}...")
+                        return JSONResponse(
+                            status_code=status.HTTP_403_FORBIDDEN,
+                            content={
+                                "type": "error",
+                                "error": {
+                                    "type": "permission_error",
+                                    "message": "API key has been deactivated. Please contact the administrator.",
+                                },
+                            },
+                        )
+            except ClientError as e:
+                print(f"[AUTH] Error checking deactivation reason: {e}")
+
+            # Key doesn't exist or other error
+            print(f"[AUTH] Invalid API key: {api_key[:20]}...")
             return JSONResponse(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 content={

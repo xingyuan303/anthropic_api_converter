@@ -212,18 +212,42 @@ class APIKeyManager:
         Args:
             user_id: User identifier
             name: Human-readable name for the key
-            rate_limit: Optional custom rate limit
+            rate_limit: Optional custom rate limit (must be positive)
             service_tier: Optional Bedrock service tier ('default', 'flex', 'priority', 'reserved')
                          Note: Claude models only support 'default' and 'reserved'
             metadata: Optional metadata dictionary
             owner_name: Display name for the owner (e.g., "Eng. Team")
             role: Role type (e.g., "Admin", "Write Only", "Read Only", "Full Access")
-            monthly_budget: Monthly budget limit in USD
-            tpm_limit: Tokens per minute limit
+            monthly_budget: Monthly budget limit in USD (must be non-negative)
+            tpm_limit: Tokens per minute limit (must be positive)
 
         Returns:
             Generated API key
+
+        Raises:
+            ValueError: If any input validation fails
         """
+        # Input validation
+        if not user_id or not user_id.strip():
+            raise ValueError("user_id cannot be empty")
+
+        if not name or not name.strip():
+            raise ValueError("name cannot be empty")
+
+        if rate_limit is not None and rate_limit <= 0:
+            raise ValueError(f"rate_limit must be positive, got: {rate_limit}")
+
+        if monthly_budget is not None and monthly_budget < 0:
+            raise ValueError(f"monthly_budget cannot be negative, got: {monthly_budget}")
+
+        if tpm_limit is not None and tpm_limit <= 0:
+            raise ValueError(f"tpm_limit must be positive, got: {tpm_limit}")
+
+        if service_tier is not None:
+            valid_tiers = {"default", "flex", "priority", "reserved"}
+            if service_tier not in valid_tiers:
+                raise ValueError(f"service_tier must be one of {valid_tiers}, got: {service_tier}")
+
         api_key = f"sk-{uuid4().hex}"
         timestamp = int(time.time())
 
