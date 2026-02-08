@@ -80,16 +80,36 @@ class BedrockService:
             connect_timeout=30,
             retries={"max_attempts": 3, "mode": "standard"},
         )
-        # print(f"-------settings--------:\n{settings}")
-        self.client = boto3.client(
-            "bedrock-runtime",
-            region_name=settings.aws_region,
-            endpoint_url=settings.bedrock_endpoint_url,
-            aws_access_key_id=settings.aws_access_key_id,
-            aws_secret_access_key=settings.aws_secret_access_key,
-            aws_session_token=settings.aws_session_token,
-            config=config,
-        )
+        
+        # Cross-account Bedrock access
+        if settings.bedrock_cross_account_role_arn:
+            sts_client = boto3.client('sts', region_name=settings.aws_region)
+            assumed_role = sts_client.assume_role(
+                RoleArn=settings.bedrock_cross_account_role_arn,
+                RoleSessionName='bedrock-proxy-session',
+                DurationSeconds=3600
+            )
+            credentials = assumed_role['Credentials']
+            
+            self.client = boto3.client(
+                "bedrock-runtime",
+                region_name=settings.bedrock_region,
+                aws_access_key_id=credentials['AccessKeyId'],
+                aws_secret_access_key=credentials['SecretAccessKey'],
+                aws_session_token=credentials['SessionToken'],
+                config=config,
+            )
+        else:
+            # Original logic - use local account
+            self.client = boto3.client(
+                "bedrock-runtime",
+                region_name=settings.aws_region,
+                endpoint_url=settings.bedrock_endpoint_url,
+                aws_access_key_id=settings.aws_access_key_id,
+                aws_secret_access_key=settings.aws_secret_access_key,
+                aws_session_token=settings.aws_session_token,
+                config=config,
+            )
 
         # Initialize DynamoDB client if not provided
         if dynamodb_client is None:
