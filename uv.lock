@@ -38,6 +38,7 @@ dependencies = [
     { name = "anthropic" },
     { name = "boto3" },
     { name = "botocore" },
+    { name = "cachetools" },
     { name = "docker" },
     { name = "fastapi" },
     { name = "httpx" },
@@ -77,6 +78,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.42.16" },
     { name = "boto3-stubs", extras = ["bedrock-runtime", "dynamodb"], marker = "extra == 'dev'", specifier = ">=1.34.0" },
     { name = "botocore", specifier = ">=1.42.16" },
+    { name = "cachetools", specifier = ">=5.3.0" },
     { name = "docker", specifier = ">=7.0.0" },
     { name = "fastapi", specifier = ">=0.119.0" },
     { name = "httpx", specifier = ">=0.27.0" },
@@ -246,6 +248,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e9/e9/eb177f3e2fd2f133a98db76709ff79884446f7a6fa89fe924d686eca5449/botocore_stubs-1.40.53.tar.gz", hash = "sha256:c5cba2e1f1fb4b41945a73cdf999a5444481e4ad009ca54d2c0d96b0f473522f", size = 42223, upload-time = "2025-10-15T20:27:56.546Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/59/d8/6c0ee2b997cd8dcffb89871b086516ae79471b8f0ae68b46216114415de0/botocore_stubs-1.40.53-py3-none-any.whl", hash = "sha256:f076c4e34877a445be05a68de77298750292564dae8e19706576394921772f5f", size = 66541, upload-time = "2025-10-15T20:27:54.175Z" },
+]
+
+[[package]]
+name = "cachetools"
+version = "7.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/af/df70e9b65bc77a1cbe0768c0aa4617147f30f8306ded98c1744bcdc0ae1e/cachetools-7.0.0.tar.gz", hash = "sha256:a9abf18ff3b86c7d05b27ead412e235e16ae045925e531fae38d5fada5ed5b08", size = 35796, upload-time = "2026-02-01T18:59:47.411Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/28/df/2dd32cce20cbcf6f2ec456b58d44368161ad28320729f64e5e1d5d7bd0ae/cachetools-7.0.0-py3-none-any.whl", hash = "sha256:d52fef60e6e964a1969cfb61ccf6242a801b432790fe520d78720d757c81cbd2", size = 13487, upload-time = "2026-02-01T18:59:45.981Z" },
 ]
 
 [[package]]
