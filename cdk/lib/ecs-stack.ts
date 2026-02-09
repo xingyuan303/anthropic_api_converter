@@ -241,6 +241,10 @@ export class ECSStack extends cdk.Stack {
       // Bedrock Concurrency
       BEDROCK_THREAD_POOL_SIZE: config.bedrockThreadPoolSize.toString(),
       BEDROCK_SEMAPHORE_SIZE: config.bedrockSemaphoreSize.toString(),
+
+      // Bedrock Cross-Account
+      BEDROCK_CROSS_ACCOUNT_ROLE_ARN: process.env.BEDROCK_CROSS_ACCOUNT_ROLE_ARN || '',
+      BEDROCK_REGION: process.env.BEDROCK_REGION || config.region,
     };
 
     // Create service based on launch type
